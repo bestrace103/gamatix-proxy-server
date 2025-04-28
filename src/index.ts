@@ -124,6 +124,9 @@ async function handleProxyRequest(req: Request, res: Response): Promise<void> {
       return;
     }
 
+    // Set response status
+    res.status(response.status);
+
     // Set response headers
     const contentType = response.headers['content-type'] || 'application/octet-stream';
     res.set('Content-Type', contentType);
@@ -146,7 +149,7 @@ async function handleProxyRequest(req: Request, res: Response): Promise<void> {
       }
     });
 
-    // Handle HTML content
+    // Handle different content types
     if (contentType.includes('text/html')) {
       const body = response.data.toString('utf8');
       
@@ -167,7 +170,20 @@ async function handleProxyRequest(req: Request, res: Response): Promise<void> {
       });
 
       res.send(rewrittenBody);
+    } else if (contentType.includes('application/json')) {
+      // Handle JSON responses
+      try {
+        const jsonData = JSON.parse(response.data.toString('utf8'));
+        res.json(jsonData);
+      } catch (error) {
+        console.error('Error parsing JSON:', error);
+        res.send(response.data);
+      }
+    } else if (contentType.includes('text/') || contentType.includes('application/javascript') || contentType.includes('application/x-javascript')) {
+      // Handle text-based responses
+      res.send(response.data.toString('utf8'));
     } else {
+      // For binary data or other content types, send as is
       res.send(response.data);
     }
   } catch (error) {
