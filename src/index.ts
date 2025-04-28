@@ -3,14 +3,28 @@ import axios from 'axios';
 import type { AxiosRequestConfig } from 'axios';
 import { HttpsProxyAgent } from 'https-proxy-agent';
 import { URL } from 'url';
+import dotenv from 'dotenv';
+
+// Load environment variables
+dotenv.config();
 
 const app = express();
 
-// Set your residential proxy information
-const proxyHost: string = '123.123.123.123';
-const proxyPort: string = '8000';
-const proxyUsername: string = 'yourUsername';
-const proxyPassword: string = 'yourPassword';
+// Set your residential proxy information from environment variables
+const proxyHost: string = process.env.PROXY_HOST || '123.123.123.123';
+const proxyPort: string = process.env.PROXY_PORT || '8000';
+const proxyUsername: string = process.env.PROXY_USERNAME || 'yourUsername';
+const proxyPassword: string = process.env.PROXY_PASSWORD || 'yourPassword';
+
+// Validate required environment variables
+const requiredEnvVars = ['PROXY_HOST', 'PROXY_PORT', 'PROXY_USERNAME', 'PROXY_PASSWORD'];
+const missingEnvVars = requiredEnvVars.filter(envVar => !process.env[envVar]);
+
+if (missingEnvVars.length > 0) {
+  console.error('Missing required environment variables:', missingEnvVars.join(', '));
+  console.error('Please check your .env file');
+  process.exit(1);
+}
 
 const proxyAgent = new HttpsProxyAgent(`http://${proxyUsername}:${proxyPassword}@${proxyHost}:${proxyPort}`);
 
@@ -88,7 +102,7 @@ app.get('/proxy', async (req: Request, res: Response): Promise<void> => {
 });
 
 // Server start
-const PORT = 3000;
+const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
 app.listen(PORT, () => {
   console.log(`Proxy server running at http://localhost:${PORT}`);
 }); 
