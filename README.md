@@ -10,6 +10,7 @@ A lightweight, type-safe proxy server built with TypeScript, Express, and Axios.
 - Automatic redirect handling
 - Environment variable configuration
 - Error handling and logging
+- Test interface with iframe support
 
 ## Prerequisites
 
@@ -57,6 +58,15 @@ npm run build
 npm start
 ```
 
+### Testing
+
+The server includes a test interface that allows you to easily test the proxy functionality:
+
+1. Start the server using one of the methods above
+2. Open your browser and navigate to `http://localhost:3000`
+3. Enter a URL in the input field and click "Load URL"
+4. The proxied content will be displayed in an iframe
+
 ## API Endpoints
 
 ### GET /proxy
@@ -84,6 +94,8 @@ http://localhost:3000/proxy?url=https://example.com
 .
 ├── src/
 │   └── index.ts      # Main application file
+├── public/
+│   └── index.html    # Test interface
 ├── dist/             # Compiled JavaScript files
 ├── .env              # Environment variables
 ├── .gitignore        # Git ignore file
