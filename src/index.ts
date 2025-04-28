@@ -113,6 +113,7 @@ async function handleProxyRequest(req: Request, res: Response): Promise<void> {
     };
 
     const response = await axios(config);
+    console.log(response.status)
 
     // Handle Redirect (HTTP 30x)
     if (response.status >= 300 && response.status < 400 && response.headers.location) {
