@@ -10,23 +10,15 @@ dotenv.config();
 
 const app = express();
 
-// Set your residential proxy information from environment variables
-const proxyHost: string = process.env.PROXY_HOST || '123.123.123.123';
-const proxyPort: string = process.env.PROXY_PORT || '8000';
-const proxyUsername: string = process.env.PROXY_USERNAME || 'yourUsername';
-const proxyPassword: string = process.env.PROXY_PASSWORD || 'yourPassword';
-
-// Validate required environment variables
-const requiredEnvVars = ['PROXY_HOST', 'PROXY_PORT', 'PROXY_USERNAME', 'PROXY_PASSWORD'];
-const missingEnvVars = requiredEnvVars.filter(envVar => !process.env[envVar]);
-
-if (missingEnvVars.length > 0) {
-  console.error('Missing required environment variables:', missingEnvVars.join(', '));
-  console.error('Please check your .env file');
+// Parse proxy configuration from single PROXY environment variable
+const proxyUrl = process.env.PROXY;
+if (!proxyUrl) {
+  console.error('Missing required environment variable: PROXY');
+  console.error('Format should be: username:password@host:port');
   process.exit(1);
 }
 
-const proxyAgent = new HttpsProxyAgent(`http://${proxyUsername}:${proxyPassword}@${proxyHost}:${proxyPort}`);
+const proxyAgent = new HttpsProxyAgent(`http://${proxyUrl}`);
 
 // Proxy route
 app.get('/proxy', async (req: Request, res: Response): Promise<void> => {
