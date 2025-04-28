@@ -6,7 +6,7 @@ import { URL } from 'url';
 
 const app = express();
 
-// Set your residential proxy info
+// Set your residential proxy information
 const proxyHost: string = '123.123.123.123';
 const proxyPort: string = '8000';
 const proxyUsername: string = 'yourUsername';
