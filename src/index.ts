@@ -19,17 +19,26 @@ const server = createServer(app);
 
 // Enable CORS for all routes
 app.use((req, res, next) => {
+
   res.header('Access-Control-Allow-Origin', '*');
+
   res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, PATCH, OPTIONS');
+
   res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
+
   if (req.method === 'OPTIONS') {
+
     return res.sendStatus(200);
+
   }
+
   next();
+
 });
 
 // Parse JSON bodies
 app.use(express.json());
+
 app.use(express.urlencoded({ extended: true }));
 
 // Serve static files from the public directory
@@ -37,9 +46,13 @@ app.use(express.static(path.join(__dirname, '../public')));
 
 // Parse proxy configuration from single PROXY environment variable
 const proxyUrl = process.env.PROXY;
+
 if (!proxyUrl) {
+
   console.error('Missing required environment variable: PROXY');
+
   console.error('Format should be: username:password@host:port');
+
   process.exit(1);
 }
 
@@ -48,48 +61,73 @@ const proxyAgent = new HttpsProxyAgent(`http://${proxyUrl}`);
 // Helper function to normalize URLs
 function normalizeUrl(urlString: string, baseUrl?: string): string {
   try {
+
     // Handle protocol-relative URLs (starting with //)
     if (urlString.startsWith('//')) {
+
       return `https:${urlString}`;
+
     }
 
     // Handle relative URLs
     if (baseUrl && !urlString.startsWith('http')) {
+
       const base = new URL(baseUrl);
+
       return new URL(urlString, base.origin).toString();
+
     }
 
     // Validate URL
     new URL(urlString);
+
     return urlString;
+
   } catch (error) {
+
     console.error('Error normalizing URL:', error);
+
     throw new Error('Invalid URL format');
   }
 }
 
 // Generic proxy handler for all HTTP methods
 async function handleProxyRequest(req: Request, res: Response): Promise<void> {
+
   const targetUrl = req.query.url as string;
+
   if (!targetUrl) {
+
     res.status(400).send('Missing target URL');
+
     return;
+
   }
 
   try {
     // Normalize the target URL
     const normalizedUrl = normalizeUrl(targetUrl);
+
     console.log(`Proxying ${req.method} request to: ${normalizedUrl}`);
 
     const config: AxiosRequestConfig = {
+
       method: req.method,
+
       url: normalizedUrl,
+
       responseType: 'arraybuffer',
+
       validateStatus: () => true,
+
       httpsAgent: proxyAgent,
+
       maxRedirects: 5,
+
       timeout: 30000,
+
       headers: {
+
         'User-Agent': req.headers['user-agent'] || 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
         'Accept': '*/*',
         'Accept-Language': req.headers['accept-language'] || 'en-US,en;q=0.9',
@@ -102,6 +140,7 @@ async function handleProxyRequest(req: Request, res: Response): Promise<void> {
         'Sec-Fetch-Site': 'none',
         'Sec-Fetch-User': '?1',
         'Upgrade-Insecure-Requests': '1',
+        
         ...Object.fromEntries(
           Object.entries(req.headers)
             .filter(([key, value]) => 
