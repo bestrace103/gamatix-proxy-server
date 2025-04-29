@@ -52,13 +52,13 @@ function normalizeUrl(urlString: string, baseUrl?: string): string {
     if (urlString.startsWith('//')) {
       return `https:${urlString}`;
     }
-    
+
     // Handle relative URLs
     if (baseUrl && !urlString.startsWith('http')) {
       const base = new URL(baseUrl);
       return new URL(urlString, base.origin).toString();
     }
-    
+
     // Validate URL
     new URL(urlString);
     return urlString;
@@ -110,12 +110,23 @@ async function handleProxyRequest(req: Request, res: Response): Promise<void> {
             )
         )
       },
-      data: req.body,
-      params: req.query
+      // data: req.body,
+      // params: req.query
     };
 
+    if (req.body && Object.keys(req.body).length > 0) {
+      console.log("Appending req.body", req.body);
+      config.data = req.body;
+    }
+    if (req.query && Object.keys(req.query).length > 0) {
+      console.log("Appending req.query", req.query);
+      config.params = req.query;
+    }
+
+    console.log("config", config)
+
     const response = await axios(config);
-    console.log(response.status)
+    console.log(response.status);
 
     // Handle Redirect (HTTP 30x)
     if (response.status >= 300 && response.status < 400 && response.headers.location) {
@@ -133,7 +144,7 @@ async function handleProxyRequest(req: Request, res: Response): Promise<void> {
     // Set response headers
     const contentType = response.headers['content-type'] || 'application/octet-stream';
     res.set('Content-Type', contentType);
-    
+
     // Copy relevant headers from the proxied response
     const headersToCopy = [
       'content-type',
@@ -145,7 +156,7 @@ async function handleProxyRequest(req: Request, res: Response): Promise<void> {
       'last-modified',
       'etag'
     ];
-    
+
     headersToCopy.forEach(header => {
       if (response.headers[header]) {
         res.set(header, response.headers[header]);
@@ -155,7 +166,7 @@ async function handleProxyRequest(req: Request, res: Response): Promise<void> {
     // Handle different content types
     if (contentType.includes('text/html')) {
       const body = response.data.toString('utf8');
-      
+
       // Rewrite URLs in HTML content
       const rewrittenBody = body.replace(/(href|src|action)=["'](.*?)["']/gi, (match: string, attr: string, link: string) => {
         try {
@@ -207,7 +218,7 @@ const wss = new WebSocketServer({ server });
 
 wss.on('connection', (ws: WebSocket, req: Request) => {
   const targetUrl = new URL(req.url!, `http://${req.headers.host}`).searchParams.get('url');
-  
+
   if (!targetUrl) {
     ws.close(1008, 'Missing target URL');
     return;
