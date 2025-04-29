@@ -118,12 +118,12 @@ async function handleProxyRequest(req: Request, res: Response): Promise<void> {
       console.log("Appending req.body", req.body);
       config.data = req.body;
     }
+
+    delete req.query["url"]
     if (req.query && Object.keys(req.query).length > 0) {
       console.log("Appending req.query", req.query);
       config.params = req.query;
     }
-
-    console.log("config", config)
 
     const response = await axios(config);
     console.log(response.status);
