@@ -89,10 +89,8 @@ async function handleProxyRequest(req: Request, res: Response): Promise<void> {
       timeout: 30000,
       headers: {
         'User-Agent': req.headers['user-agent'] || 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
-        'Accept': '*/*',
         'Accept-Language': req.headers['accept-language'] || 'en-US,en;q=0.9',
         'Accept-Encoding': 'gzip, deflate, br',
-        'Connection': 'keep-alive',
         'Cache-Control': 'no-cache',
         'Pragma': 'no-cache',
         'Sec-Fetch-Dest': 'document',
@@ -138,9 +136,8 @@ async function handleProxyRequest(req: Request, res: Response): Promise<void> {
     res.status(response.status);
 
     // Set response headers
-    const contentType = response.headers['content-type'] || 'application/octet-stream';
+    const contentType = response.headers['content-type'] || '';
     console.log(chalk.blue('📦 Content-Type:'), chalk.yellow(contentType));
-    res.set('Content-Type', contentType);
 
     // Copy relevant headers from the proxied response
     const headersToCopy = [
@@ -168,11 +165,11 @@ async function handleProxyRequest(req: Request, res: Response): Promise<void> {
 
       // Add base href tag if not present
       let modifiedBody = body;
-      if (!/<base[^>]*>/i.test(body)) {
-        const parsedUrl = new URL(normalizedUrl);
-        const baseHref = parsedUrl.origin /* + parsedUrl.pathname */;
-        modifiedBody = body.replace(/<head[^>]*>/i, `$&<base href="${baseHref}">`);
-      }
+      // if (!/<base[^>]*>/i.test(body)) {
+      //   const parsedUrl = new URL(normalizedUrl);
+      //   const baseHref = parsedUrl.origin /* + parsedUrl.pathname */;
+      //   modifiedBody = body.replace(/<head[^>]*>/i, `$&<base href="${baseHref}" />`);
+      // }
 
       // Rewrite URLs in HTML content
       const rewrittenBody = modifiedBody.replace(/(href|src|action)=["'](.*?)["']/gi, (match: string, attr: string, link: string) => {
@@ -190,7 +187,6 @@ async function handleProxyRequest(req: Request, res: Response): Promise<void> {
         }
       });
 
-      console.log(rewrittenBody);
       await res.send(rewrittenBody);
       console.log(chalk.blue('📄 HTML content sent successfully'));
     } else if (contentType.includes('application/json')) {
@@ -207,7 +203,14 @@ async function handleProxyRequest(req: Request, res: Response): Promise<void> {
       res.send(response.data.toString('utf8'));
     } else {
       console.log(chalk.blue('📦 Sending binary data'));
-      res.send(response.data);
+      const match = response.data.toString('utf8').match(/location\.replace\('(.*?)'\)/);
+      if (match) {
+        await res.redirect(`/proxy?url=${encodeURIComponent(match[1])}`);
+        console.log(chalk.blue("📦 Redirected"),`/proxy?url=${encodeURIComponent(match[1])}`);
+      } else {
+        await res.send(response.data);
+        console.log(chalk.blue("📦 Sent binary data"));
+      }
     }
   } catch (error) {
     console.error(chalk.red('❌ Proxy error:'), error instanceof Error ? error.message : 'Unknown error');
