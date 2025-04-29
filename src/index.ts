@@ -7,9 +7,7 @@ import dotenv from 'dotenv';
 import path from 'path';
 import { createServer } from 'http';
 import { WebSocket, WebSocketServer } from 'ws';
-import { createProxyMiddleware } from 'http-proxy-middleware';
-
-
+import chalk from 'chalk';
 
 // Load environment variables
 dotenv.config();
@@ -38,8 +36,8 @@ app.use(express.static(path.join(__dirname, '../public')));
 // Parse proxy configuration from single PROXY environment variable
 const proxyUrl = process.env.PROXY;
 if (!proxyUrl) {
-  console.error('Missing required environment variable: PROXY');
-  console.error('Format should be: username:password@host:port');
+  console.error(chalk.red('❌ Missing required environment variable: PROXY'));
+  console.error(chalk.yellow('Format should be: username:password@host:port'));
   process.exit(1);
 }
 
@@ -63,7 +61,7 @@ function normalizeUrl(urlString: string, baseUrl?: string): string {
     new URL(urlString);
     return urlString;
   } catch (error) {
-    console.error('Error normalizing URL:', error);
+    console.error(chalk.red('❌ Error normalizing URL:'), error);
     throw new Error('Invalid URL format');
   }
 }
@@ -79,7 +77,7 @@ async function handleProxyRequest(req: Request, res: Response): Promise<void> {
   try {
     // Normalize the target URL
     const normalizedUrl = normalizeUrl(targetUrl);
-    console.log(`Proxying ${req.method} request to: ${normalizedUrl}`);
+    console.log(chalk.cyan('🔄 Proxying'), chalk.yellow(req.method), chalk.cyan('request to:'), chalk.green(normalizedUrl));
 
     const config: AxiosRequestConfig = {
       method: req.method,
@@ -104,36 +102,34 @@ async function handleProxyRequest(req: Request, res: Response): Promise<void> {
         'Upgrade-Insecure-Requests': '1',
         ...Object.fromEntries(
           Object.entries(req.headers)
-            .filter(([key, value]) => 
-              typeof value === 'string' && 
+            .filter(([key, value]) =>
+              typeof value === 'string' &&
               !['host', 'origin', 'referer'].includes(key.toLowerCase())
             )
         )
       },
-      // data: req.body,
-      // params: req.query
     };
 
     if (req.body && Object.keys(req.body).length > 0) {
-      console.log("Appending req.body", req.body);
+      console.log(chalk.magenta('📦 Request body:'), chalk.gray(JSON.stringify(req.body, null, 2)));
       config.data = req.body;
     }
 
-    delete req.query["url"]
+    delete req.query["url"];
     if (req.query && Object.keys(req.query).length > 0) {
-      console.log("Appending req.query", req.query);
+      console.log(chalk.magenta('🔍 Query parameters:'), chalk.gray(JSON.stringify(req.query, null, 2)));
       config.params = req.query;
     }
 
     const response = await axios(config);
-    console.log(response.status);
+    console.log(chalk.blue('📡 Response status:'), chalk.yellow(response.status));
 
     // Handle Redirect (HTTP 30x)
     if (response.status >= 300 && response.status < 400 && response.headers.location) {
       const location = response.headers.location;
       const newTarget = location.startsWith('http') ? location : new URL(location, normalizedUrl).toString();
       const proxiedLocation = `/proxy?url=${encodeURIComponent(newTarget)}`;
-      console.log(`Redirect detected. Rewriting to: ${proxiedLocation}`);
+      console.log(chalk.yellow('↪️ Redirect detected. Rewriting to:'), chalk.green(proxiedLocation));
       res.redirect(proxiedLocation);
       return;
     }
@@ -143,6 +139,7 @@ async function handleProxyRequest(req: Request, res: Response): Promise<void> {
 
     // Set response headers
     const contentType = response.headers['content-type'] || 'application/octet-stream';
+    console.log(chalk.blue('📦 Content-Type:'), chalk.yellow(contentType));
     res.set('Content-Type', contentType);
 
     // Copy relevant headers from the proxied response
@@ -159,6 +156,7 @@ async function handleProxyRequest(req: Request, res: Response): Promise<void> {
 
     headersToCopy.forEach(header => {
       if (response.headers[header]) {
+        console.log(chalk.blue(`📦 Copying header: ${header}`), chalk.yellow(response.headers[header]));
         res.set(header, response.headers[header]);
       }
     });
@@ -166,9 +164,18 @@ async function handleProxyRequest(req: Request, res: Response): Promise<void> {
     // Handle different content types
     if (contentType.includes('text/html')) {
       const body = response.data.toString('utf8');
+      console.log(chalk.blue('📄 Processing HTML content'));
+
+      // Add base href tag if not present
+      let modifiedBody = body;
+      if (!/<base[^>]*>/i.test(body)) {
+        const parsedUrl = new URL(normalizedUrl);
+        const baseHref = parsedUrl.origin /* + parsedUrl.pathname */;
+        modifiedBody = body.replace(/<head[^>]*>/i, `$&<base href="${baseHref}">`);
+      }
 
       // Rewrite URLs in HTML content
-      const rewrittenBody = body.replace(/(href|src|action)=["'](.*?)["']/gi, (match: string, attr: string, link: string) => {
+      const rewrittenBody = modifiedBody.replace(/(href|src|action)=["'](.*?)["']/gi, (match: string, attr: string, link: string) => {
         try {
           if (link.startsWith('http') || link.startsWith('//')) {
             return `${attr}="/proxy?url=${encodeURIComponent(normalizeUrl(link, normalizedUrl))}"`;
@@ -178,30 +185,32 @@ async function handleProxyRequest(req: Request, res: Response): Promise<void> {
             return `${attr}="/proxy?url=${encodeURIComponent(absoluteUrl)}"`;
           }
         } catch (error) {
-          console.error('Error rewriting URL:', error);
+          console.error(chalk.red('❌ Error rewriting URL:'), error);
           return match;
         }
       });
 
-      res.send(rewrittenBody);
+      console.log(rewrittenBody);
+      await res.send(rewrittenBody);
+      console.log(chalk.blue('📄 HTML content sent successfully'));
     } else if (contentType.includes('application/json')) {
-      // Handle JSON responses
+      console.log(chalk.blue('📦 Processing JSON response'));
       try {
         const jsonData = JSON.parse(response.data.toString('utf8'));
         res.json(jsonData);
       } catch (error) {
-        console.error('Error parsing JSON:', error);
+        console.error(chalk.red('❌ Error parsing JSON:'), error);
         res.send(response.data);
       }
     } else if (contentType.includes('text/') || contentType.includes('application/javascript') || contentType.includes('application/x-javascript')) {
-      // Handle text-based responses
+      console.log(chalk.blue('📝 Processing text response'));
       res.send(response.data.toString('utf8'));
     } else {
-      // For binary data or other content types, send as is
+      console.log(chalk.blue('📦 Sending binary data'));
       res.send(response.data);
     }
   } catch (error) {
-    console.error('Proxy error:', error instanceof Error ? error.message : 'Unknown error');
+    console.error(chalk.red('❌ Proxy error:'), error instanceof Error ? error.message : 'Unknown error');
     if (error instanceof Error && error.message === 'Invalid URL format') {
       res.status(400).send('Invalid URL format');
     } else {
@@ -220,13 +229,14 @@ wss.on('connection', (ws: WebSocket, req: Request) => {
   const targetUrl = new URL(req.url!, `http://${req.headers.host}`).searchParams.get('url');
 
   if (!targetUrl) {
+    console.error(chalk.red('❌ WebSocket connection rejected: Missing target URL'));
     ws.close(1008, 'Missing target URL');
     return;
   }
 
   try {
     const normalizedUrl = normalizeUrl(targetUrl);
-    console.log(`Proxying WebSocket connection to: ${normalizedUrl}`);
+    console.log(chalk.cyan('🔌 Proxying WebSocket connection to:'), chalk.green(normalizedUrl));
 
     // Create WebSocket connection to target
     const targetWs = new WebSocket(normalizedUrl, {
@@ -253,6 +263,7 @@ wss.on('connection', (ws: WebSocket, req: Request) => {
 
     // Handle connection close
     const handleClose = () => {
+      console.log(chalk.yellow('🔒 WebSocket connection closed'));
       if (ws.readyState === WebSocket.OPEN) ws.close();
       if (targetWs.readyState === WebSocket.OPEN) targetWs.close();
     };
@@ -262,7 +273,7 @@ wss.on('connection', (ws: WebSocket, req: Request) => {
 
     // Handle errors
     const handleError = (error: Error) => {
-      console.error('WebSocket error:', error);
+      console.error(chalk.red('❌ WebSocket error:'), error);
       handleClose();
     };
 
@@ -270,7 +281,7 @@ wss.on('connection', (ws: WebSocket, req: Request) => {
     targetWs.on('error', handleError);
 
   } catch (error) {
-    console.error('WebSocket proxy error:', error);
+    console.error(chalk.red('❌ WebSocket proxy error:'), error);
     ws.close(1011, 'Internal Server Error');
   }
 });
@@ -278,5 +289,6 @@ wss.on('connection', (ws: WebSocket, req: Request) => {
 // Server start
 const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
 server.listen(PORT, () => {
-  console.log(`Proxy server running at http://localhost:${PORT}`);
+  console.log(chalk.green('🚀 Proxy server running at'), chalk.blue(`http://localhost:${PORT}`));
+  console.log(chalk.yellow('📝 Logging enabled with beautiful console output'));
 }); 
