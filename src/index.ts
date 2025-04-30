@@ -170,16 +170,18 @@ async function handleProxyRequest(req: Request, res: Response): Promise<void> {
       //   const baseHref = parsedUrl.origin /* + parsedUrl.pathname */;
       //   modifiedBody = body.replace(/<head[^>]*>/i, `$&<base href="${baseHref}" />`);
       // }
-
+      console.log(modifiedBody);
       // Rewrite URLs in HTML content
       const rewrittenBody = modifiedBody.replace(/(href|src|action)=["'](.*?)["']/gi, (match: string, attr: string, link: string) => {
         try {
           if (link.startsWith('http') || link.startsWith('//')) {
             return `${attr}="/proxy?url=${encodeURIComponent(normalizeUrl(link, normalizedUrl))}"`;
-          } else {
+          } else if (link.startsWith("/")) {
             const parsedUrl = new URL(normalizedUrl);
             const absoluteUrl = new URL(link, parsedUrl.origin).toString();
             return `${attr}="/proxy?url=${encodeURIComponent(absoluteUrl)}"`;
+          } else {
+            return `${attr}='${link}'`;
           }
         } catch (error) {
           console.error(chalk.red('❌ Error rewriting URL:'), error);
@@ -206,7 +208,7 @@ async function handleProxyRequest(req: Request, res: Response): Promise<void> {
       const match = response.data.toString('utf8').match(/location\.replace\('(.*?)'\)/);
       if (match) {
         await res.redirect(`/proxy?url=${encodeURIComponent(match[1])}`);
-        console.log(chalk.blue("📦 Redirected"),`/proxy?url=${encodeURIComponent(match[1])}`);
+        console.log(chalk.blue("📦 Redirected"), `/proxy?url=${encodeURIComponent(match[1])}`);
       } else {
         await res.send(response.data);
         console.log(chalk.blue("📦 Sent binary data"));
