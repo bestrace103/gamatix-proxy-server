@@ -79,6 +79,19 @@ async function handleProxyRequest(req: Request, res: Response): Promise<void> {
     const normalizedUrl = normalizeUrl(targetUrl);
     console.log(chalk.cyan('🔄 Proxying'), chalk.yellow(req.method), chalk.cyan('request to:'), chalk.green(normalizedUrl));
 
+    const headers = {
+      'Accept-Encoding': 'gzip, deflate, br',
+      ...Object.fromEntries(
+        Object.entries(req.headers)
+          .filter(([key, value]) =>
+            typeof value === 'string' &&
+            !['host', 'origin', 'referer'].includes(key.toLowerCase())
+          )
+      )
+    };
+
+    console.log(headers)
+
     const config: AxiosRequestConfig = {
       method: req.method,
       url: normalizedUrl,
@@ -87,25 +100,7 @@ async function handleProxyRequest(req: Request, res: Response): Promise<void> {
       httpsAgent: proxyAgent,
       maxRedirects: 5,
       timeout: 30000,
-      headers: {
-        'User-Agent': req.headers['user-agent'] || 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
-        'Accept-Language': req.headers['accept-language'] || 'en-US,en;q=0.9',
-        'Accept-Encoding': 'gzip, deflate, br',
-        'Cache-Control': 'no-cache',
-        'Pragma': 'no-cache',
-        'Sec-Fetch-Dest': 'document',
-        'Sec-Fetch-Mode': 'navigate',
-        'Sec-Fetch-Site': 'none',
-        'Sec-Fetch-User': '?1',
-        'Upgrade-Insecure-Requests': '1',
-        ...Object.fromEntries(
-          Object.entries(req.headers)
-            .filter(([key, value]) =>
-              typeof value === 'string' &&
-              !['host', 'origin', 'referer'].includes(key.toLowerCase())
-            )
-        )
-      },
+      headers,
     };
 
     if (req.body && Object.keys(req.body).length > 0) {
@@ -163,16 +158,7 @@ async function handleProxyRequest(req: Request, res: Response): Promise<void> {
       const body = response.data.toString('utf8');
       console.log(chalk.blue('📄 Processing HTML content'));
 
-      // Add base href tag if not present
-      let modifiedBody = body;
-      // if (!/<base[^>]*>/i.test(body)) {
-      //   const parsedUrl = new URL(normalizedUrl);
-      //   const baseHref = parsedUrl.origin /* + parsedUrl.pathname */;
-      //   modifiedBody = body.replace(/<head[^>]*>/i, `$&<base href="${baseHref}" />`);
-      // }
-      console.log(modifiedBody);
-      // Rewrite URLs in HTML content
-      const rewrittenBody = modifiedBody.replace(/(href|src|action)=["'](.*?)["']/gi, (match: string, attr: string, link: string) => {
+      const rewrittenBody = body.replace(/(href|src|action)=["'](.*?)["']/gi, (match: string, attr: string, link: string) => {
         try {
           if (link.startsWith('http') || link.startsWith('//')) {
             return `${attr}="/proxy?url=${encodeURIComponent(normalizeUrl(link, normalizedUrl))}"`;
